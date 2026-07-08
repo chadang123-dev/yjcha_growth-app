@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>우리 아이 성장 기록</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #F3F1E6;
+    --card: #FFFFFE;
+    --ink: #23342B;
+    --ink-soft: #56655C;
+    --sage: #4F7859;
+    --sage-light: #DCE7DE;
+    --mustard: #E3A857;
+    --mustard-light: #FBEBD3;
+    --berry: #9C5A6B;
+    --line: #DEDACB;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(35,52,43,0.07), 0 1px 2px rgba(35,52,43,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{
+    font-family:'Fraunces','Apple SD Gothic Neo','Malgun Gothic',serif;
+    letter-spacing:-0.01em;
+  }
+  .mono{font-family:'Space Mono',monospace;}
+  a{color:inherit;}
+  button{
+    font-family:inherit;
+    cursor:pointer;
+    border:none;
+    background:none;
+  }
+  input,textarea{
+    font-family:inherit;
+    font-size:15px;
+    border:1.5px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    background:#fff;
+    color:var(--ink);
+    width:100%;
+  }
+  input:focus,textarea:focus{outline:2px solid var(--sage);outline-offset:1px;}
+  label{font-size:13px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:5px;}
+  .field{margin-bottom:14px;}
+
+  /* ---------- App shell ---------- */
+  #app{max-width:760px;margin:0 auto;padding:0 16px 100px;}
+  header.top{
+    position:sticky;top:0;z-index:20;
+    background:var(--bg);
+    padding:18px 0 12px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:18px;
+  }
+  header.top .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;}
+  header.top h1{font-size:22px;margin:0;font-weight:700;color:var(--ink);}
+  header.top .age{font-size:13px;color:var(--sage);font-weight:600;}
+  .tabs{display:flex;gap:6px;margin-top:14px;}
+  .tab{
+    flex:1;text-align:center;padding:9px 6px;border-radius:10px;
+    font-size:13.5px;font-weight:600;color:var(--ink-soft);
+  }
+  .tab.active{background:var(--sage);color:#fff;}
+
+  /* ---------- Setup screen ---------- */
+  .setup-wrap{max-width:420px;margin:60px auto;padding:0 20px;}
+  .setup-card{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:28px 24px;
+  }
+  .setup-card h2{margin:0 0 6px;font-size:22px;}
+  .setup-card p.sub{color:var(--ink-soft);font-size:13.5px;margin:0 0 20px;line-height:1.5;}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    padding:11px 18px;border-radius:10px;font-weight:600;font-size:14.5px;
+    background:var(--sage);color:#fff;width:100%;
+  }
+  .btn.secondary{background:var(--sage-light);color:var(--sage);}
+  .btn.ghost{background:transparent;color:var(--ink-soft);border:1.5px solid var(--line);}
+  .btn.danger{background:#F4E4E7;color:var(--berry);}
+  .msg{font-size:13px;margin-top:10px;padding:10px 12px;border-radius:8px;line-height:1.5;}
+  .msg.error{background:#F6E4E4;color:#8A3B3B;}
+  .msg.ok{background:var(--sage-light);color:var(--sage);}
+  details.help{margin-top:16px;font-size:13px;color:var(--ink-soft);}
+  details.help summary{cursor:pointer;font-weight:600;color:var(--sage);}
+  details.help ol{padding-left:18px;line-height:1.7;}
+  details.help code{background:var(--sage-light);padding:1px 5px;border-radius:4px;}
+
+  /* ---------- Timeline (growth ruler) ---------- */
+  .timeline{position:relative;padding-left:34px;margin-top:8px;}
+  .timeline::before{
+    content:"";position:absolute;left:14px;top:4px;bottom:4px;width:2px;
+    background:repeating-linear-gradient(var(--sage),var(--sage) 6px,transparent 6px,transparent 12px);
+  }
+  .entry{position:relative;margin-bottom:26px;}
+  .entry .tick{
+    position:absolute;left:-34px;top:6px;width:30px;height:30px;
+    background:var(--card);border:2px solid var(--sage);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Mono',monospace;font-size:10px;font-weight:700;color:var(--sage);
+    z-index:2;
+  }
+  .entry-card{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:16px 18px;
+  }
+  .entry-card .date-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .entry-card .date{font-weight:700;font-size:15px;}
+  .entry-card .age-tag{font-size:12px;color:var(--ink-soft);}
+  .entry-card .stats{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap;}
+  .stat-pill{
+    font-family:'Space Mono',monospace;font-size:12.5px;font-weight:700;
+    background:var(--mustard-light);color:#8A6416;padding:4px 10px;border-radius:20px;
+  }
+  .entry-card .diary{font-size:14.5px;line-height:1.65;color:var(--ink);white-space:pre-wrap;margin:8px 0 10px;}
+  .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;margin-top:8px;}
+  .photo-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;background:var(--sage-light);cursor:pointer;}
+  .photo-grid .ph-loading{width:100%;aspect-ratio:1;border-radius:8px;background:var(--sage-light);}
+  .entry-actions{display:flex;justify-content:flex-end;gap:14px;margin-top:8px;}
+  .entry-actions button{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+  .entry-actions button.del{color:var(--berry);}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--ink-soft);}
+  .empty-state .display{font-size:19px;color:var(--ink);margin-bottom:6px;}
+
+  /* ---------- FAB ---------- */
+  .fab{
+    position:fixed;right:20px;bottom:24px;z-index:30;
+    width:58px;height:58px;border-radius:50%;background:var(--sage);color:#fff;
+    box-shadow:0 6px 18px rgba(79,120,89,0.4);font-size:28px;
+    display:flex;align-items:center;justify-content:center;
+  }
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(35,52,43,0.45);z-index:40;
+    display:flex;align-items:flex-end;justify-content:center;
+  }
+  @media(min-width:600px){.overlay{align-items:center;}}
+  .sheet{
+    background:var(--bg);width:100%;max-width:520px;max-height:92vh;overflow-y:auto;
+    border-radius:20px 20px 0 0;padding:22px 20px 28px;
+  }
+  @media(min-width:600px){.sheet{border-radius:20px;}}
+  .sheet h2{margin:0 0 16px;font-size:20px;}
+  .sheet .row2{display:flex;gap:10px;}
+  .sheet .row2 .field{flex:1;}
+  .photo-input-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .photo-input-preview img{width:64px;height:64px;object-fit:cover;border-radius:8px;}
+  .file-btn{
+    border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;
+    color:var(--ink-soft);font-size:13.5px;font-weight:600;
+  }
+  .sheet-actions{display:flex;gap:10px;margin-top:18px;}
+  .sheet-actions .btn{flex:1;}
+
+  /* ---------- Chart tab ---------- */
+  .chart-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px;}
+  .chart-card h3{margin:0 0 10px;font-size:15px;}
+  canvas{max-width:100%;}
+
+  /* ---------- Settings ---------- */
+  .settings-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:14px;}
+  .settings-card h3{margin:0 0 12px;font-size:15px;}
+  .kv{display:flex;justify-content:space-between;font-size:13.5px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--ink-soft);}
+  .kv .v{font-family:'Space Mono',monospace;font-size:12.5px;}
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:10px 18px;border-radius:20px;font-size:13.5px;
+    z-index:60;box-shadow:0 4px 14px rgba(0,0,0,0.25);
+  }
+  .spinner{
+    width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;
+    border-radius:50%;display:inline-block;animation:spin 0.7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .lightbox{position:fixed;inset:0;background:rgba(10,15,12,0.92);z-index:70;display:flex;align-items:center;justify-content:center;}
+  .lightbox img{max-width:92%;max-height:88%;border-radius:8px;}
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+/* ============================================================
+   우리 아이 성장 기록 — GitHub 저장소를 백엔드로 쓰는 단일 페이지 앱
+   ============================================================ */
+
+const LS_KEY = "growth_app_config_v1";
+const state = {
+  config: null,        // {owner, repo, branch, token}
+  meta: {childName:"", birthDate:""},
+  metaSha: null,
+  entries: [],
+  entriesSha: null,
+  tab: "timeline",
+  loading: false,
+  photoCache: {},       // path -> object URL
+};
+
+function loadConfig(){
+  try{ return JSON.parse(localStorage.getItem(LS_KEY)); }catch(e){ return null; }
+}
+function saveConfig(cfg){ localStorage.setItem(LS_KEY, JSON.stringify(cfg)); }
+function clearConfig(){ localStorage.removeItem(LS_KEY); }
+
+function apiHeaders(raw){
+  const h = {
+    "Authorization": "Bearer " + state.config.token,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  h["Accept"] = raw ? "application/vnd.github.raw" : "application/vnd.github+json";
+  return h;
+}
+function contentsUrl(path){
+  const c = state.config;
+  return `https://api.github.com/repos/${c.owner}/${c.repo}/contents/${path}`;
+}
+
+async function ghGetJson(path){
+  const res = await fetch(contentsUrl(path) + `?ref=${state.config.branch}`, {headers: apiHeaders(false)});
+  if(res.status === 404) return {json:null, sha:null};
+  if(!res.ok) throw new Error("GitHub 읽기 실패 ("+res.status+")");
+  const data = await res.json();
+  const text = b64ToUtf8(data.content);
+  return {json: JSON.parse(text), sha: data.sha};
+}
+async function ghGetRawBlob(path){
+  const res = await fetch(contentsUrl(path) + `?ref=${state.config.branch}`, {headers: apiHeaders(true)});
+  if(!res.ok) throw new Error("사진 로드 실패");
+  return await res.blob();
+}
+async function ghPutJson(path, obj, sha, message){
+  const body = {
+    message: message,
+    content: utf8ToB64(JSON.stringify(obj, null, 2)),
+    branch: state.config.branch,
+  };
+  if(sha) body.sha = sha;
+  const res = await fetch(contentsUrl(path), {
+    method:"PUT", headers: apiHeaders(false), body: JSON.stringify(body)
+  });
+  if(!res.ok){ const t = await res.text(); throw new Error("저장 실패: "+t); }
+  return await res.json();
+}
+async function ghPutBinary(path, base64Content, message){
+  const body = {message: message, content: base64Content, branch: state.config.branch};
+  const res = await fetch(contentsUrl(path), {method:"PUT", headers: apiHeaders(false), body: JSON.stringify(body)});
+  if(!res.ok){ const t = await res.text(); throw new Error("사진 업로드 실패: "+t); }
+  return await res.json();
+}
+async function ghDelete(path, sha, message){
+  const res = await fetch(contentsUrl(path), {
+    method:"DELETE", headers: apiHeaders(false),
+    body: JSON.stringify({message, sha, branch: state.config.branch})
+  });
+  return res.ok;
+}
+
+function utf8ToB64(str){
+  return btoa(unescape(encodeURIComponent(str)));
+}
+function b64ToUtf8(b64){
+  return decodeURIComponent(escape(atob(b64.replace(/\n/g,""))));
+}
+function arrayBufferToBase64(buffer){
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunk = 0x8000;
+  for(let i=0;i<bytes.length;i+=chunk){
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+  }
+  return btoa(binary);
+}
+
+/* ---------- Image compression ---------- */
+function compressImage(file, maxDim=1400, quality=0.78){
+  return new Promise((resolve, reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = e => { img.src = e.target.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let {width, height} = img;
+      if(width > height && width > maxDim){ height = Math.round(height * maxDim/width); width = maxDim; }
+      else if(height > maxDim){ width = Math.round(width * maxDim/height); height = maxDim; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => {
+        if(!blob) return reject(new Error("이미지 변환 실패"));
+        blob.arrayBuffer().then(buf => resolve({blob, base64: arrayBufferToBase64(buf)}));
+      }, "image/jpeg", quality);
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ---------- Age helper ---------- */
+function ageAt(birthDateStr, dateStr){
+  if(!birthDateStr) return "";
+  const b = new Date(birthDateStr), d = new Date(dateStr);
+  let days = Math.round((d-b)/86400000);
+  if(days < 0) return "";
+  if(days < 60) return `생후 ${days}일`;
+  const months = Math.floor(days/30.44);
+  if(months < 24) return `생후 ${months}개월`;
+  const years = Math.floor(months/12);
+  const rem = months%12;
+  return `${years}세${rem?` ${rem}개월`:""}`;
+}
+
+/* ============================================================
+   Rendering
+   ============================================================ */
+const root = document.getElementById("root");
+
+function render(){
+  if(!state.config){ renderSetup(); return; }
+  renderApp();
+}
+
+function el(html){
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+
+/* ---------- Setup screen ---------- */
+function renderSetup(prefill, errorMsg){
+  root.innerHTML = "";
+  const wrap = el(`
+    <div class="setup-wrap">
+      <div class="setup-card">
+        <h2 class="display">🌱 우리 아이 성장 기록</h2>
+        <p class="sub">사진과 기록은 GitHub의 비공개 저장소에 안전하게 보관돼요. 저장소 정보와 개인 액세스 토큰(Personal Access Token)을 입력해서 연결하세요. 토큰은 이 기기 브라우저에만 저장되고 외부로 전송되지 않아요.</p>
+        <div class="field"><label>GitHub 사용자명 (owner)</label><input id="f-owner" placeholder="예: minsu-kim"></div>
+        <div class="field"><label>저장소 이름 (repo)</label><input id="f-repo" placeholder="예: our-baby-growth"></div>
+        <div class="field"><label>브랜치</label><input id="f-branch" value="main"></div>
+        <div class="field"><label>Personal Access Token</label><input id="f-token" type="password" placeholder="github_pat_..."></div>
+        <button class="btn" id="connect-btn">연결하기</button>
+        <div id="setup-msg"></div>
+        <details class="help">
+          <summary>처음이신가요? 5분 설정 가이드 보기</summary>
+          <ol>
+            <li>github.com에서 <b>New repository</b> 클릭 → 이름(예: our-baby-growth) 입력 → <b>Private</b> 선택 → 생성</li>
+            <li>우측 상단 프로필 → <b>Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token</b></li>
+            <li>Repository access에서 방금 만든 저장소만 선택, Permissions에서 <b>Contents: Read and write</b> 로 설정 후 생성</li>
+            <li>생성된 토큰(<code>github_pat_...</code>)을 복사해서 위에 붙여넣기</li>
+            <li>배우자분은 저장소 <b>Settings → Collaborators</b>에서 초대 → 배우자분이 본인 계정으로 로그인해 수락 → 배우자분도 본인 토큰을 만들어 이 화면에서 같은 owner/repo로 연결하면 됨</li>
+          </ol>
+        </details>
+      </div>
+    </div>
+  `);
+  root.appendChild(wrap);
+  if(prefill){
+    wrap.querySelector("#f-owner").value = prefill.owner||"";
+    wrap.querySelector("#f-repo").value = prefill.repo||"";
+    wrap.querySelector("#f-branch").value = prefill.branch||"main";
+  }
+  if(errorMsg){
+    wrap.querySelector("#setup-msg").innerHTML = `<div class="msg error">${errorMsg}</div>`;
+  }
+  wrap.querySelector("#connect-btn").onclick = async () => {
+    const owner = wrap.querySelector("#f-owner").value.trim();
+    const repo = wrap.querySelector("#f-repo").value.trim();
+    const branch = wrap.querySelector("#f-branch").value.trim() || "main";
+    const token = wrap.querySelector("#f-token").value.trim();
+    if(!owner||!repo||!token){
+      wrap.querySelector("#setup-msg").innerHTML = `<div class="msg error">모든 항목을 입력해주세요.</div>`;
+      return;
+    }
+    const btn = wrap.querySelector("#connect-btn");
+    btn.innerHTML = `<span class="spinner"></span> 확인 중...`;
+    const cfg = {owner, repo, branch, token};
+    state.config = cfg;
+    try{
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {headers: apiHeaders(false)});
+      if(!res.ok) throw new Error(res.status === 404 ? "저장소를 찾을 수 없어요. owner/repo 이름을 확인해주세요." : "연결 실패 (토큰 권한을 확인해주세요)");
+      saveConfig(cfg);
+      await bootstrapData();
+      render();
+    }catch(e){
+      state.config = null;
+      wrap.querySelector("#connect-btn").textContent = "연결하기";
+      wrap.querySelector("#setup-msg").innerHTML = `<div class="msg error">${e.message}</div>`;
+    }
+  };
+}
+
+async function bootstrapData(){
+  const metaRes = await ghGetJson("data/config.json");
+  if(metaRes.json){ state.meta = metaRes.json; state.metaSha = metaRes.sha; }
+  else{ state.meta = {childName:"", birthDate:""}; state.metaSha = null; }
+
+  const entRes = await ghGetJson("data/entries.json");
+  if(entRes.json){ state.entries = entRes.json; state.entriesSha = entRes.sha; }
+  else{ state.entries = []; state.entriesSha = null; }
+}
+
+/* ---------- Main app ---------- */
+function renderApp(){
+  root.innerHTML = "";
+  const needsName = !state.meta.childName;
+  const app = el(`
+    <div id="app">
+      <header class="top">
+        <div class="row">
+          <h1 class="display">${state.meta.childName ? state.meta.childName+"의 성장 기록" : "성장 기록"} 🌱</h1>
+          <div class="age"></div>
+        </div>
+        <div class="tabs">
+          <button class="tab" data-tab="timeline">타임라인</button>
+          <button class="tab" data-tab="chart">성장 차트</button>
+          <button class="tab" data-tab="settings">설정</button>
+        </div>
+      </header>
+      <div id="tab-content"></div>
+    </div>
+    <button class="fab" id="fab-add">＋</button>
+  `);
+  root.appendChild(app);
+  app.querySelectorAll(".tab").forEach(b=>{
+    b.classList.toggle("active", b.dataset.tab === state.tab);
+    b.onclick = () => { state.tab = b.dataset.tab; renderApp(); };
+  });
+  app.querySelector("#fab-add").onclick = openAddSheet;
+  if(needsName){
+    openSettingsQuickName();
+  }
+  const content = app.querySelector("#tab-content");
+  if(state.tab === "timeline") renderTimeline(content);
+  else if(state.tab === "chart") renderChart(content);
+  else renderSettings(content);
+}
+
+function sortedEntries(){
+  return [...state.entries].sort((a,b)=> b.date.localeCompare(a.date));
+}
+
+function renderTimeline(container){
+  const entries = sortedEntries();
+  if(entries.length === 0){
+    container.appendChild(el(`
+      <div class="empty-state">
+        <div class="display">아직 기록이 없어요</div>
+        <div>오른쪽 아래 ＋ 버튼을 눌러 첫 기록을 남겨보세요</div>
+      </div>
+    `));
+    return;
+  }
+  const tl = el(`<div class="timeline"></div>`);
+  entries.forEach(entry => {
+    const heightLabel = entry.height ? `${entry.height}` : "•";
+    const card = el(`
+      <div class="entry" data-id="${entry.id}">
+        <div class="tick">${heightLabel}</div>
+        <div class="entry-card">
+          <div class="date-row">
+            <div class="date">${formatDate(entry.date)}</div>
+            <div class="age-tag">${ageAt(state.meta.birthDate, entry.date)}</div>
+          </div>
+          <div class="stats">
+            ${entry.height ? `<span class="stat-pill">${entry.height} cm</span>`:""}
+            ${entry.weight ? `<span class="stat-pill">${entry.weight} kg</span>`:""}
+          </div>
+          ${entry.diary ? `<div class="diary">${escapeHtml(entry.diary)}</div>` : ""}
+          <div class="photo-grid"></div>
+          <div class="entry-actions">
+            <button class="del">삭제</button>
+          </div>
+        </div>
+      </div>
+    `);
+    const grid = card.querySelector(".photo-grid");
+    (entry.photos||[]).forEach(path => {
+      const ph = el(`<div class="ph-loading"></div>`);
+      grid.appendChild(ph);
+      loadPhoto(path).then(url=>{
+        const img = el(`<img src="${url}">`);
+        img.onclick = ()=> openLightbox(url);
+        ph.replaceWith(img);
+      }).catch(()=>{ ph.style.background = "#eee"; });
+    });
+    card.querySelector(".del").onclick = () => deleteEntry(entry.id);
+    tl.appendChild(card);
+  });
+  container.appendChild(tl);
+}
+
+async function loadPhoto(path){
+  if(state.photoCache[path]) return state.photoCache[path];
+  const blob = await ghGetRawBlob(path);
+  const url = URL.createObjectURL(blob);
+  state.photoCache[path] = url;
+  return url;
+}
+
+function openLightbox(url){
+  const lb = el(`<div class="lightbox"><img src="${url}"></div>`);
+  lb.onclick = ()=> lb.remove();
+  document.body.appendChild(lb);
+}
+
+function formatDate(dateStr){
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,"0")}.${String(d.getDate()).padStart(2,"0")}`;
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+/* ---------- Chart tab ---------- */
+let chartInstance = null;
+function renderChart(container){
+  const entries = [...state.entries].sort((a,b)=> a.date.localeCompare(b.date)).filter(e=>e.height||e.weight);
+  if(entries.length === 0){
+    container.appendChild(el(`<div class="empty-state"><div class="display">아직 키/몸무게 기록이 없어요</div><div>기록을 추가할 때 키와 몸무게를 입력해보세요</div></div>`));
+    return;
+  }
+  container.appendChild(el(`
+    <div class="chart-card">
+      <h3>키 (cm)</h3>
+      <canvas id="height-chart" height="180"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>몸무게 (kg)</h3>
+      <canvas id="weight-chart" height="180"></canvas>
+    </div>
+  `));
+  ensureChartJs().then(()=>{
+    const labels = entries.map(e=>formatDate(e.date));
+    drawChart("height-chart", labels, entries.map(e=>e.height||null), "#4F7859");
+    drawChart("weight-chart", labels, entries.map(e=>e.weight||null), "#E3A857");
+  });
+}
+function ensureChartJs(){
+  if(window.Chart) return Promise.resolve();
+  return new Promise(resolve=>{
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js";
+    s.onload = resolve;
+    document.head.appendChild(s);
+  });
+}
+function drawChart(canvasId, labels, data, color){
+  const ctx = document.getElementById(canvasId);
+  new Chart(ctx, {
+    type:"line",
+    data:{labels, datasets:[{data, borderColor:color, backgroundColor:color+"33", tension:0.3, spanGaps:true, pointRadius:4}]},
+    options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:false}}}
+  });
+}
+
+/* ---------- Settings tab ---------- */
+function renderSettings(container){
+  const c = state.config;
+  container.appendChild(el(`
+    <div class="settings-card">
+      <h3>아이 정보</h3>
+      <div class="field"><label>이름</label><input id="s-name" value="${state.meta.childName||""}"></div>
+      <div class="field"><label>생년월일</label><input id="s-birth" type="date" value="${state.meta.birthDate||""}"></div>
+      <button class="btn" id="save-meta">저장</button>
+      <div id="meta-msg"></div>
+    </div>
+    <div class="settings-card">
+      <h3>연결된 저장소</h3>
+      <div class="kv"><span class="k">저장소</span><span class="v">${c.owner}/${c.repo}</span></div>
+      <div class="kv"><span class="k">브랜치</span><span class="v">${c.branch}</span></div>
+    </div>
+    <div class="settings-card">
+      <h3>배우자와 함께 쓰기</h3>
+      <p style="font-size:13.5px;color:var(--ink-soft);line-height:1.6;margin:0 0 10px;">
+        1. github.com에서 배우자분 계정을 만듭니다 (무료)<br>
+        2. 저장소 <b>${c.owner}/${c.repo}</b> → Settings → Collaborators 에서 배우자 계정을 초대합니다<br>
+        3. 배우자분이 초대를 수락한 뒤, 본인 토큰을 만들어 이 앱 최초 화면에서 같은 owner(<b>${c.owner}</b>)/repo(<b>${c.repo}</b>)로 연결하면 함께 기록할 수 있어요
+      </p>
+    </div>
+    <div class="settings-card">
+      <button class="btn danger" id="logout-btn">이 기기에서 연결 해제</button>
+    </div>
+  `));
+  container.querySelector("#save-meta").onclick = async () => {
+    const name = container.querySelector("#s-name").value.trim();
+    const birth = container.querySelector("#s-birth").value;
+    const btn = container.querySelector("#save-meta");
+    btn.innerHTML = `<span class="spinner"></span>`;
+    try{
+      const newMeta = {childName:name, birthDate:birth};
+      const res = await ghPutJson("data/config.json", newMeta, state.metaSha, "아이 정보 업데이트");
+      state.meta = newMeta;
+      state.metaSha = res.content.sha;
+      showToast("저장했어요");
+      renderApp();
+    }catch(e){
+      container.querySelector("#meta-msg").innerHTML = `<div class="msg error">${e.message}</div>`;
+      btn.textContent = "저장";
+    }
+  };
+  container.querySelector("#logout-btn").onclick = () => {
+    if(confirm("이 기기의 연결 정보를 삭제할까요? (저장된 기록/사진은 삭제되지 않아요)")){
+      clearConfig();
+      state.config = null;
+      render();
+    }
+  };
+}
+
+function openSettingsQuickName(){
+  // no-op placeholder: user will see settings tab prompt via empty name in header
+}
+
+/* ---------- Add entry sheet ---------- */
+let pendingPhotos = [];
+function openAddSheet(){
+  pendingPhotos = [];
+  const overlay = el(`
+    <div class="overlay">
+      <div class="sheet">
+        <h2 class="display">오늘의 기록 남기기</h2>
+        <div class="field"><label>날짜</label><input id="a-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+        <div class="row2">
+          <div class="field"><label>키 (cm)</label><input id="a-height" type="number" step="0.1" placeholder="예: 68.5"></div>
+          <div class="field"><label>몸무게 (kg)</label><input id="a-weight" type="number" step="0.01" placeholder="예: 7.8"></div>
+        </div>
+        <div class="field"><label>오늘의 이야기</label><textarea id="a-diary" rows="4" placeholder="오늘 있었던 일을 적어보세요"></textarea></div>
+        <div class="field">
+          <label>사진</label>
+          <label class="file-btn" id="pick-photo">📷 사진 선택하기<input type="file" id="a-photos" accept="image/*" multiple style="display:none"></label>
+          <div class="photo-input-preview" id="a-preview"></div>
+        </div>
+        <div class="sheet-actions">
+          <button class="btn ghost" id="cancel-add">취소</button>
+          <button class="btn" id="save-add">저장하기</button>
+        </div>
+        <div id="add-msg"></div>
+      </div>
+    </div>
+  `);
+  document.body.appendChild(overlay);
+  overlay.onclick = (e) => { if(e.target === overlay) overlay.remove(); };
+  overlay.querySelector("#cancel-add").onclick = () => overlay.remove();
+  overlay.querySelector("#a-photos").onchange = (e) => {
+    const preview = overlay.querySelector("#a-preview");
+    [...e.target.files].forEach(file => {
+      pendingPhotos.push(file);
+      const reader = new FileReader();
+      reader.onload = ev => preview.appendChild(el(`<img src="${ev.target.result}">`));
+      reader.readAsDataURL(file);
+    });
+  };
+  overlay.querySelector("#save-add").onclick = async () => {
+    const date = overlay.querySelector("#a-date").value;
+    const height = parseFloat(overlay.querySelector("#a-height").value) || null;
+    const weight = parseFloat(overlay.querySelector("#a-weight").value) || null;
+    const diary = overlay.querySelector("#a-diary").value.trim();
+    if(!date){ overlay.querySelector("#add-msg").innerHTML = `<div class="msg error">날짜를 선택해주세요.</div>`; return; }
+    const btn = overlay.querySelector("#save-add");
+    btn.innerHTML = `<span class="spinner"></span> 저장 중...`;
+    try{
+      const photoPaths = [];
+      for(const file of pendingPhotos){
+        const {base64} = await compressImage(file);
+        const fname = `photos/${date}-${Date.now()}-${Math.random().toString(36).slice(2,7)}.jpg`;
+        await ghPutBinary(fname, base64, `사진 추가: ${date}`);
+        photoPaths.push(fname);
+      }
+      const entry = {
+        id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
+        date, height, weight, diary, photos: photoPaths,
+        createdAt: new Date().toISOString()
+      };
+      // re-fetch entries to get latest sha (in case wife added something meanwhile)
+      const fresh = await ghGetJson("data/entries.json");
+      const list = fresh.json || [];
+      list.push(entry);
+      const res = await ghPutJson("data/entries.json", list, fresh.sha, `기록 추가: ${date}`);
+      state.entries = list;
+      state.entriesSha = res.content.sha;
+      overlay.remove();
+      showToast("기록을 저장했어요 🌱");
+      renderApp();
+    }catch(e){
+      overlay.querySelector("#add-msg").innerHTML = `<div class="msg error">${e.message}</div>`;
+      btn.textContent = "저장하기";
+    }
+  };
+}
+
+async function deleteEntry(id){
+  if(!confirm("이 기록을 삭제할까요? 사진도 함께 삭제돼요.")) return;
+  showToast("삭제 중...");
+  try{
+    const fresh = await ghGetJson("data/entries.json");
+    const list = fresh.json || [];
+    const target = list.find(e=>e.id===id);
+    const remaining = list.filter(e=>e.id!==id);
+    const res = await ghPutJson("data/entries.json", remaining, fresh.sha, `기록 삭제: ${id}`);
+    state.entries = remaining;
+    state.entriesSha = res.content.sha;
+    if(target && target.photos){
+      for(const p of target.photos){
+        try{
+          const info = await fetch(contentsUrl(p)+`?ref=${state.config.branch}`, {headers:apiHeaders(false)}).then(r=>r.json());
+          await ghDelete(p, info.sha, `사진 삭제: ${p}`);
+        }catch(e){/* ignore */}
+      }
+    }
+    showToast("삭제했어요");
+    renderApp();
+  }catch(e){
+    showToast("삭제 실패: "+e.message);
+  }
+}
+
+function showToast(msg){
+  const t = el(`<div class="toast">${msg}</div>`);
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2200);
+}
+
+/* ---------- Boot ---------- */
+(async function init(){
+  const cfg = loadConfig();
+  if(cfg){
+    state.config = cfg;
+    root.innerHTML = `<div class="setup-wrap"><div class="setup-card" style="text-align:center;"><span class="spinner" style="border-color:rgba(79,120,89,0.3);border-top-color:var(--sage);"></span><p class="sub" style="margin-top:12px;">불러오는 중...</p></div></div>`;
+    try{
+      await bootstrapData();
+      render();
+    }catch(e){
+      state.config = null;
+      renderSetup(cfg, "다시 연결해주세요: "+e.message);
+    }
+  }else{
+    renderSetup();
+  }
+})();
+</script>
+</body>
+</html>
