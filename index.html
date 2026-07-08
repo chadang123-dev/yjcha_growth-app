@@ -167,7 +167,11 @@
 
   /* ---------- Chart tab ---------- */
   .chart-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:16px;}
-  .chart-card h3{margin:0 0 10px;font-size:15px;}
+  .chart-card h3{margin:0 0 8px;font-size:15px;}
+  .insight-line{font-size:13px;color:var(--ink-soft);line-height:1.6;margin:0 0 14px;}
+  .insight-line b{color:var(--sage);font-family:'Space Mono',monospace;font-weight:700;}
+  .insight-empty{font-size:13px;color:var(--ink-soft);margin:0 0 14px;}
+  .chart-canvas-wrap{position:relative;height:220px;}
   canvas{max-width:100%;}
 
   /* ---------- Settings ---------- */
@@ -339,6 +343,11 @@ function render(){
 function el(html){
   const t = document.createElement("template");
   t.innerHTML = html.trim();
+  if(t.content.children.length > 1){
+    const wrap = document.createElement("div");
+    while(t.content.firstChild) wrap.appendChild(t.content.firstChild);
+    return wrap;
+  }
   return t.content.firstElementChild;
 }
 
@@ -528,44 +537,99 @@ function escapeHtml(s){
 }
 
 /* ---------- Chart tab ---------- */
-let chartInstance = null;
+function computeInsight(sortedVals, key, unit){
+  // sortedVals: entries sorted ascending by date, each has [key] set
+  if(sortedVals.length === 0) return null;
+  const last = sortedVals[sortedVals.length-1];
+  const first = sortedVals[0];
+  const daysSpan = (new Date(last.date) - new Date(first.date)) / 86400000;
+  const totalChange = last[key] - first[key];
+  const perMonth = daysSpan >= 20 ? (totalChange / (daysSpan/30.44)) : null;
+  let sincePrev = null, prevDate = null;
+  if(sortedVals.length >= 2){
+    const prev = sortedVals[sortedVals.length-2];
+    sincePrev = last[key] - prev[key];
+    prevDate = prev.date;
+  }
+  return {
+    lastVal: last[key], lastDate: last.date,
+    totalChange, perMonth, sincePrev, prevDate,
+    count: sortedVals.length
+  };
+}
+function fmtSigned(n, unit){
+  if(n === null || n === undefined || isNaN(n)) return "";
+  const s = n > 0 ? "+" : "";
+  return `${s}${Math.round(n*10)/10}${unit}`;
+}
 function renderChart(container){
   const entries = [...state.entries].sort((a,b)=> a.date.localeCompare(b.date)).filter(e=>e.height||e.weight);
   if(entries.length === 0){
     container.appendChild(el(`<div class="empty-state"><div class="display">아직 키/몸무게 기록이 없어요</div><div>기록을 추가할 때 키와 몸무게를 입력해보세요</div></div>`));
     return;
   }
+  const heightVals = entries.filter(e=>e.height!=null);
+  const weightVals = entries.filter(e=>e.weight!=null);
+  const hInsight = computeInsight(heightVals, "height", "cm");
+  const wInsight = computeInsight(weightVals, "weight", "kg");
+
+  function insightHtml(insight, unit, label){
+    if(!insight) return `<p class="insight-empty">${label} 기록이 아직 없어요</p>`;
+    let lines = [`최근 ${formatDate(insight.lastDate)} 기준 <b>${insight.lastVal}${unit}</b>`];
+    if(insight.sincePrev !== null){
+      lines.push(`이전 기록(${formatDate(insight.prevDate)}) 대비 <b>${fmtSigned(insight.sincePrev, unit)}</b>`);
+    }
+    if(insight.perMonth !== null){
+      lines.push(`측정 시작 이후 월평균 <b>${fmtSigned(insight.perMonth, unit)}</b> 성장`);
+    }
+    return `<p class="insight-line">${lines.join(" · ")}</p>`;
+  }
+
   container.appendChild(el(`
     <div class="chart-card">
       <h3>키 (cm)</h3>
-      <canvas id="height-chart" height="180"></canvas>
+      ${insightHtml(hInsight, "cm", "키")}
+      <div class="chart-canvas-wrap"><canvas id="height-chart"></canvas></div>
     </div>
     <div class="chart-card">
       <h3>몸무게 (kg)</h3>
-      <canvas id="weight-chart" height="180"></canvas>
+      ${insightHtml(wInsight, "kg", "몸무게")}
+      <div class="chart-canvas-wrap"><canvas id="weight-chart"></canvas></div>
     </div>
   `));
   ensureChartJs().then(()=>{
-    const labels = entries.map(e=>formatDate(e.date));
-    drawChart("height-chart", labels, entries.map(e=>e.height||null), "#4F7859");
-    drawChart("weight-chart", labels, entries.map(e=>e.weight||null), "#E3A857");
+    const hLabels = heightVals.map(e=>formatDate(e.date));
+    const wLabels = weightVals.map(e=>formatDate(e.date));
+    if(heightVals.length) drawChart("height-chart", hLabels, heightVals.map(e=>e.height), "#4F7859");
+    if(weightVals.length) drawChart("weight-chart", wLabels, weightVals.map(e=>e.weight), "#E3A857");
+  }).catch(()=>{
+    container.querySelectorAll(".chart-canvas-wrap").forEach(w=>{
+      w.innerHTML = `<p class="insight-empty">차트 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요.</p>`;
+    });
   });
 }
 function ensureChartJs(){
   if(window.Chart) return Promise.resolve();
-  return new Promise(resolve=>{
+  return new Promise((resolve, reject)=>{
     const s = document.createElement("script");
     s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js";
     s.onload = resolve;
+    s.onerror = reject;
     document.head.appendChild(s);
   });
 }
 function drawChart(canvasId, labels, data, color){
-  const ctx = document.getElementById(canvasId);
-  new Chart(ctx, {
+  const canvas = document.getElementById(canvasId);
+  if(!canvas) return;
+  new Chart(canvas, {
     type:"line",
-    data:{labels, datasets:[{data, borderColor:color, backgroundColor:color+"33", tension:0.3, spanGaps:true, pointRadius:4}]},
-    options:{plugins:{legend:{display:false}}, scales:{y:{beginAtZero:false}}}
+    data:{labels, datasets:[{data, borderColor:color, backgroundColor:color+"33", tension:0.3, spanGaps:true, pointRadius:4, fill:true}]},
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:false}}
+    }
   });
 }
 
