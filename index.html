@@ -134,6 +134,29 @@
   .empty-state{text-align:center;padding:60px 20px;color:var(--ink-soft);}
   .empty-state .display{font-size:19px;color:var(--ink);margin-bottom:6px;}
 
+  .month-group-header{
+    font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--sage);
+    margin:22px 0 10px 2px;text-transform:uppercase;letter-spacing:0.02em;
+    display:flex;align-items:baseline;gap:8px;
+  }
+  .month-group-header:first-child{margin-top:2px;}
+  .month-group-count{font-family:'Inter',sans-serif;font-weight:600;font-size:11px;color:var(--ink-soft);text-transform:none;}
+  .milestone-badge{
+    display:inline-block;background:var(--mustard);color:#fff;font-size:12px;font-weight:700;
+    padding:3px 10px;border-radius:20px;margin-bottom:8px;
+  }
+  .memory-section{margin-bottom:24px;}
+  .memory-title{font-family:'Fraunces',serif;font-size:15px;font-weight:700;color:var(--berry);margin-bottom:10px;}
+  .memory-card{margin-bottom:12px;position:relative;}
+  .memory-card::before{
+    content:"";position:absolute;left:-6px;top:0;bottom:0;width:3px;background:var(--berry);border-radius:2px;
+  }
+  .memory-card .entry-card{margin-left:8px;}
+  .memory-years{
+    font-family:'Space Mono',monospace;font-size:11.5px;font-weight:700;color:var(--berry);
+    margin:0 0 4px 8px;
+  }
+
   /* ---------- FAB ---------- */
   .fab{
     position:fixed;right:20px;bottom:24px;z-index:30;
@@ -171,6 +194,7 @@
   .insight-line{font-size:13px;color:var(--ink-soft);line-height:1.6;margin:0 0 14px;}
   .insight-line b{color:var(--sage);font-family:'Space Mono',monospace;font-weight:700;}
   .insight-empty{font-size:13px;color:var(--ink-soft);margin:0 0 14px;}
+  .who-legend{font-size:11.5px;color:var(--ink-soft);margin-top:8px;}
   .chart-canvas-wrap{position:relative;height:220px;}
   canvas{max-width:100%;}
 
@@ -464,6 +488,50 @@ function sortedEntries(){
   return [...state.entries].sort((a,b)=> b.date.localeCompare(a.date));
 }
 
+function buildEntryCard(entry){
+  const heightLabel = entry.height ? `${entry.height}` : "•";
+  const card = el(`
+    <div class="entry" data-id="${entry.id}">
+      <div class="tick">${heightLabel}</div>
+      <div class="entry-card">
+        <div class="date-row">
+          <div class="date">${formatDate(entry.date)}</div>
+          <div class="age-tag">${ageAt(state.meta.birthDate, entry.date)}</div>
+        </div>
+        ${entry.milestone ? `<div class="milestone-badge">${escapeHtml(entry.milestone)}</div>` : ""}
+        <div class="stats">
+          ${entry.height ? `<span class="stat-pill">${entry.height} cm</span>`:""}
+          ${entry.weight ? `<span class="stat-pill">${entry.weight} kg</span>`:""}
+        </div>
+        ${entry.diary ? `<div class="diary">${escapeHtml(entry.diary)}</div>` : ""}
+        <div class="photo-grid"></div>
+        <div class="entry-actions">
+          <button class="edit">수정</button>
+          <button class="del">삭제</button>
+        </div>
+      </div>
+    </div>
+  `);
+  const grid = card.querySelector(".photo-grid");
+  (entry.photos||[]).forEach(path => {
+    const ph = el(`<div class="ph-loading"></div>`);
+    grid.appendChild(ph);
+    loadPhoto(path).then(url=>{
+      const img = el(`<img src="${url}">`);
+      img.onclick = ()=> openLightbox(url);
+      ph.replaceWith(img);
+    }).catch(()=>{ ph.style.background = "#eee"; });
+  });
+  card.querySelector(".edit").onclick = () => openEditSheet(entry);
+  card.querySelector(".del").onclick = () => deleteEntry(entry.id);
+  return card;
+}
+
+function monthGroupLabel(dateStr){
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월`;
+}
+
 function renderTimeline(container){
   const entries = sortedEntries();
   if(entries.length === 0){
@@ -475,43 +543,37 @@ function renderTimeline(container){
     `));
     return;
   }
-  const tl = el(`<div class="timeline"></div>`);
-  entries.forEach(entry => {
-    const heightLabel = entry.height ? `${entry.height}` : "•";
-    const card = el(`
-      <div class="entry" data-id="${entry.id}">
-        <div class="tick">${heightLabel}</div>
-        <div class="entry-card">
-          <div class="date-row">
-            <div class="date">${formatDate(entry.date)}</div>
-            <div class="age-tag">${ageAt(state.meta.birthDate, entry.date)}</div>
-          </div>
-          <div class="stats">
-            ${entry.height ? `<span class="stat-pill">${entry.height} cm</span>`:""}
-            ${entry.weight ? `<span class="stat-pill">${entry.weight} kg</span>`:""}
-          </div>
-          ${entry.diary ? `<div class="diary">${escapeHtml(entry.diary)}</div>` : ""}
-          <div class="photo-grid"></div>
-          <div class="entry-actions">
-            <button class="edit">수정</button>
-            <button class="del">삭제</button>
-          </div>
-        </div>
-      </div>
-    `);
-    const grid = card.querySelector(".photo-grid");
-    (entry.photos||[]).forEach(path => {
-      const ph = el(`<div class="ph-loading"></div>`);
-      grid.appendChild(ph);
-      loadPhoto(path).then(url=>{
-        const img = el(`<img src="${url}">`);
-        img.onclick = ()=> openLightbox(url);
-        ph.replaceWith(img);
-      }).catch(()=>{ ph.style.background = "#eee"; });
+
+  // "몇 년 전 오늘" 메모리 카드
+  const today = new Date();
+  const todayMM = today.getMonth(), todayDD = today.getDate();
+  const memories = entries.filter(e => {
+    const d = new Date(e.date);
+    return d.getMonth() === todayMM && d.getDate() === todayDD && d.getFullYear() < today.getFullYear();
+  }).sort((a,b)=> b.date.localeCompare(a.date));
+  if(memories.length){
+    const memWrap = el(`<div class="memory-section"><div class="memory-title">🕰️ 오늘의 기억</div></div>`);
+    memories.forEach(m => {
+      const yearsAgo = today.getFullYear() - new Date(m.date).getFullYear();
+      const memCard = el(`<div class="memory-card"><div class="memory-years">${yearsAgo}년 전 오늘</div></div>`);
+      const inner = buildEntryCard(m);
+      inner.querySelector(".tick").remove();
+      inner.style.marginBottom = "0";
+      memCard.appendChild(inner.querySelector(".entry-card"));
+      memWrap.appendChild(memCard);
     });
-    card.querySelector(".edit").onclick = () => openEditSheet(entry);
-    card.querySelector(".del").onclick = () => deleteEntry(entry.id);
-    tl.appendChild(card);
+    container.appendChild(memWrap);
+  }
+
+  const tl = el(`<div class="timeline"></div>`);
+  let lastGroup = null;
+  entries.forEach(entry => {
+    const group = monthGroupLabel(entry.date);
+    if(group !== lastGroup){
+      tl.appendChild(el(`<div class="month-group-header">${group} <span class="month-group-count">${entries.filter(e=>monthGroupLabel(e.date)===group).length}건</span></div>`));
+      lastGroup = group;
+    }
+    tl.appendChild(buildEntryCard(entry));
   });
   container.appendChild(tl);
 }
@@ -536,6 +598,97 @@ function formatDate(dateStr){
 }
 function escapeHtml(s){
   return s.replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+/* ---------- WHO Child Growth Standards (GIRLS, 0-60 months, percentiles) ----------
+   Source: WHO Child Growth Standards 2006, simplified field tables (p3/p15/p50/p85/p97)
+   Index = age in completed months (0-60) */
+const WHO_GIRLS_HEIGHT = [
+  {p3:45.6,p15:47.2,p50:49.1,p85:51.1,p97:52.7},{p3:50.0,p15:51.7,p50:53.7,p85:55.7,p97:57.4},
+  {p3:53.2,p15:55.0,p50:57.1,p85:59.2,p97:60.9},{p3:55.8,p15:57.6,p50:59.8,p85:62.0,p97:63.8},
+  {p3:58.0,p15:59.8,p50:62.1,p85:64.3,p97:66.2},{p3:59.9,p15:61.7,p50:64.0,p85:66.3,p97:68.2},
+  {p3:61.5,p15:63.4,p50:65.7,p85:68.1,p97:70.0},{p3:62.9,p15:64.9,p50:67.3,p85:69.7,p97:71.6},
+  {p3:64.3,p15:66.3,p50:68.7,p85:71.2,p97:73.2},{p3:65.6,p15:67.6,p50:70.1,p85:72.6,p97:74.7},
+  {p3:66.8,p15:68.9,p50:71.5,p85:74.0,p97:76.1},{p3:68.0,p15:70.2,p50:72.8,p85:75.4,p97:77.5},
+  {p3:69.2,p15:71.3,p50:74.0,p85:76.7,p97:78.9},{p3:70.3,p15:72.5,p50:75.2,p85:77.9,p97:80.2},
+  {p3:71.3,p15:73.6,p50:76.4,p85:79.2,p97:81.4},{p3:72.4,p15:74.7,p50:77.5,p85:80.3,p97:82.7},
+  {p3:73.3,p15:75.7,p50:78.6,p85:81.5,p97:83.9},{p3:74.3,p15:76.7,p50:79.7,p85:82.6,p97:85.0},
+  {p3:75.2,p15:77.7,p50:80.7,p85:83.7,p97:86.2},{p3:76.2,p15:78.7,p50:81.7,p85:84.8,p97:87.3},
+  {p3:77.0,p15:79.6,p50:82.7,p85:85.8,p97:88.4},{p3:77.9,p15:80.5,p50:83.7,p85:86.8,p97:89.4},
+  {p3:78.7,p15:81.4,p50:84.6,p85:87.8,p97:90.5},{p3:79.6,p15:82.2,p50:85.5,p85:88.8,p97:91.5},
+  {p3:79.6,p15:82.4,p50:85.7,p85:89.1,p97:91.8},{p3:80.4,p15:83.2,p50:86.6,p85:90.0,p97:92.8},
+  {p3:81.2,p15:84.0,p50:87.4,p85:90.9,p97:93.7},{p3:81.9,p15:84.8,p50:88.3,p85:91.8,p97:94.6},
+  {p3:82.6,p15:85.5,p50:89.1,p85:92.7,p97:95.6},{p3:83.4,p15:86.3,p50:89.9,p85:93.5,p97:96.4},
+  {p3:84.0,p15:87.0,p50:90.7,p85:94.3,p97:97.3},{p3:84.7,p15:87.7,p50:91.4,p85:95.2,p97:98.2},
+  {p3:85.4,p15:88.4,p50:92.2,p85:95.9,p97:99.0},{p3:86.0,p15:89.1,p50:92.9,p85:96.7,p97:99.8},
+  {p3:86.7,p15:89.8,p50:93.6,p85:97.5,p97:100.6},{p3:87.3,p15:90.5,p50:94.4,p85:98.3,p97:101.4},
+  {p3:87.9,p15:91.1,p50:95.1,p85:99.0,p97:102.2},{p3:88.5,p15:91.7,p50:95.7,p85:99.7,p97:103.0},
+  {p3:89.1,p15:92.4,p50:96.4,p85:100.5,p97:103.7},{p3:89.7,p15:93.0,p50:97.1,p85:101.2,p97:104.5},
+  {p3:90.3,p15:93.6,p50:97.7,p85:101.9,p97:105.2},{p3:90.8,p15:94.2,p50:98.4,p85:102.6,p97:106.0},
+  {p3:91.4,p15:94.8,p50:99.0,p85:103.3,p97:106.7},{p3:92.0,p15:95.4,p50:99.7,p85:103.9,p97:107.4},
+  {p3:92.5,p15:96.0,p50:100.3,p85:104.6,p97:108.1},{p3:93.0,p15:96.6,p50:100.9,p85:105.3,p97:108.8},
+  {p3:93.6,p15:97.2,p50:101.5,p85:105.9,p97:109.5},{p3:94.1,p15:97.7,p50:102.1,p85:106.6,p97:110.2},
+  {p3:94.6,p15:98.3,p50:102.7,p85:107.2,p97:110.8},{p3:95.1,p15:98.8,p50:103.3,p85:107.8,p97:111.5},
+  {p3:95.7,p15:99.4,p50:103.9,p85:108.4,p97:112.1},{p3:96.2,p15:99.9,p50:104.5,p85:109.1,p97:112.8},
+  {p3:96.7,p15:100.4,p50:105.0,p85:109.7,p97:113.4},{p3:97.2,p15:101.0,p50:105.6,p85:110.3,p97:114.1},
+  {p3:97.6,p15:101.5,p50:106.2,p85:110.9,p97:114.7},{p3:98.1,p15:102.0,p50:106.7,p85:111.5,p97:115.3},
+  {p3:98.6,p15:102.5,p50:107.3,p85:112.1,p97:116.0},{p3:99.1,p15:103.0,p50:107.8,p85:112.6,p97:116.6},
+  {p3:99.6,p15:103.5,p50:108.4,p85:113.2,p97:117.2},{p3:100.0,p15:104.0,p50:108.9,p85:113.8,p97:117.8},
+  {p3:100.5,p15:104.5,p50:109.4,p85:114.4,p97:118.4}
+];
+const WHO_GIRLS_WEIGHT = [
+  {p3:2.4,p15:2.8,p50:3.2,p85:3.7,p97:4.2},{p3:3.2,p15:3.6,p50:4.2,p85:4.8,p97:5.4},
+  {p3:4.0,p15:4.5,p50:5.1,p85:5.9,p97:6.5},{p3:4.6,p15:5.1,p50:5.8,p85:6.7,p97:7.4},
+  {p3:5.1,p15:5.6,p50:6.4,p85:7.3,p97:8.1},{p3:5.5,p15:6.1,p50:6.9,p85:7.8,p97:8.7},
+  {p3:5.8,p15:6.4,p50:7.3,p85:8.3,p97:9.2},{p3:6.1,p15:6.7,p50:7.6,p85:8.7,p97:9.6},
+  {p3:6.3,p15:7.0,p50:7.9,p85:9.0,p97:10.0},{p3:6.6,p15:7.3,p50:8.2,p85:9.3,p97:10.4},
+  {p3:6.8,p15:7.5,p50:8.5,p85:9.6,p97:10.7},{p3:7.0,p15:7.7,p50:8.7,p85:9.9,p97:11.0},
+  {p3:7.1,p15:7.9,p50:8.9,p85:10.2,p97:11.3},{p3:7.3,p15:8.1,p50:9.2,p85:10.4,p97:11.6},
+  {p3:7.5,p15:8.3,p50:9.4,p85:10.7,p97:11.9},{p3:7.7,p15:8.5,p50:9.6,p85:10.9,p97:12.2},
+  {p3:7.8,p15:8.7,p50:9.8,p85:11.2,p97:12.5},{p3:8.0,p15:8.8,p50:10.0,p85:11.4,p97:12.7},
+  {p3:8.2,p15:9.0,p50:10.2,p85:11.6,p97:13.0},{p3:8.3,p15:9.2,p50:10.4,p85:11.9,p97:13.3},
+  {p3:8.5,p15:9.4,p50:10.6,p85:12.1,p97:13.5},{p3:8.7,p15:9.6,p50:10.9,p85:12.4,p97:13.8},
+  {p3:8.8,p15:9.8,p50:11.1,p85:12.6,p97:14.1},{p3:9.0,p15:9.9,p50:11.3,p85:12.8,p97:14.3},
+  {p3:9.2,p15:10.1,p50:11.5,p85:13.1,p97:14.6},{p3:9.3,p15:10.3,p50:11.7,p85:13.3,p97:14.9},
+  {p3:9.5,p15:10.5,p50:11.9,p85:13.6,p97:15.2},{p3:9.6,p15:10.7,p50:12.1,p85:13.8,p97:15.4},
+  {p3:9.8,p15:10.8,p50:12.3,p85:14.0,p97:15.7},{p3:10.0,p15:11.0,p50:12.5,p85:14.3,p97:16.0},
+  {p3:10.1,p15:11.2,p50:12.7,p85:14.5,p97:16.2},{p3:10.3,p15:11.3,p50:12.9,p85:14.7,p97:16.5},
+  {p3:10.4,p15:11.5,p50:13.1,p85:15.0,p97:16.8},{p3:10.5,p15:11.7,p50:13.3,p85:15.2,p97:17.0},
+  {p3:10.7,p15:11.8,p50:13.5,p85:15.4,p97:17.3},{p3:10.8,p15:12.0,p50:13.7,p85:15.7,p97:17.6},
+  {p3:11.0,p15:12.1,p50:13.9,p85:15.9,p97:17.8},{p3:11.1,p15:12.3,p50:14.0,p85:16.1,p97:18.1},
+  {p3:11.2,p15:12.5,p50:14.2,p85:16.3,p97:18.4},{p3:11.4,p15:12.6,p50:14.4,p85:16.6,p97:18.6},
+  {p3:11.5,p15:12.8,p50:14.6,p85:16.8,p97:18.9},{p3:11.6,p15:12.9,p50:14.8,p85:17.0,p97:19.2},
+  {p3:11.8,p15:13.1,p50:15.0,p85:17.3,p97:19.5},{p3:11.9,p15:13.2,p50:15.2,p85:17.5,p97:19.7},
+  {p3:12.0,p15:13.4,p50:15.3,p85:17.7,p97:20.0},{p3:12.1,p15:13.5,p50:15.5,p85:17.9,p97:20.3},
+  {p3:12.3,p15:13.7,p50:15.7,p85:18.2,p97:20.6},{p3:12.4,p15:13.8,p50:15.9,p85:18.4,p97:20.8},
+  {p3:12.5,p15:14.0,p50:16.1,p85:18.6,p97:21.1},{p3:12.6,p15:14.1,p50:16.3,p85:18.9,p97:21.4},
+  {p3:12.8,p15:14.3,p50:16.4,p85:19.1,p97:21.7},{p3:12.9,p15:14.4,p50:16.6,p85:19.3,p97:22.0},
+  {p3:13.0,p15:14.5,p50:16.8,p85:19.5,p97:22.2},{p3:13.1,p15:14.7,p50:17.0,p85:19.8,p97:22.5},
+  {p3:13.2,p15:14.8,p50:17.2,p85:20.0,p97:22.8},{p3:13.4,p15:15.0,p50:17.3,p85:20.2,p97:23.1},
+  {p3:13.5,p15:15.1,p50:17.5,p85:20.4,p97:23.3},{p3:13.6,p15:15.3,p50:17.7,p85:20.7,p97:23.6},
+  {p3:13.7,p15:15.4,p50:17.9,p85:20.9,p97:23.9},{p3:13.8,p15:15.5,p50:18.0,p85:21.1,p97:24.2},
+  {p3:14.0,p15:15.7,p50:18.2,p85:21.3,p97:24.4}
+];
+function ageInMonthsFloat(birthDateStr, dateStr){
+  const b = new Date(birthDateStr), d = new Date(dateStr);
+  return (d - b) / 86400000 / 30.4368;
+}
+function whoRowAt(table, ageMonths){
+  const clamped = Math.max(0, Math.min(60, ageMonths));
+  const lo = Math.floor(clamped), hi = Math.ceil(clamped);
+  if(lo === hi) return table[lo];
+  const t = clamped - lo;
+  const a = table[lo], b = table[hi];
+  const lerp = k => a[k] + (b[k]-a[k])*t;
+  return {p3:lerp("p3"), p15:lerp("p15"), p50:lerp("p50"), p85:lerp("p85"), p97:lerp("p97")};
+}
+function percentileBandLabel(value, row){
+  if(value < row.p3) return "3번째 백분위 미만";
+  if(value < row.p15) return "3~15번째 백분위";
+  if(value < row.p50) return "15~50번째 백분위";
+  if(value < row.p85) return "50~85번째 백분위";
+  if(value < row.p97) return "85~97번째 백분위";
+  return "97번째 백분위 초과";
 }
 
 /* ---------- Chart tab ---------- */
@@ -574,8 +727,9 @@ function renderChart(container){
   const weightVals = entries.filter(e=>e.weight!=null);
   const hInsight = computeInsight(heightVals, "height", "cm");
   const wInsight = computeInsight(weightVals, "weight", "kg");
+  const hasBirth = !!state.meta.birthDate;
 
-  function insightHtml(insight, unit, label){
+  function insightHtml(insight, unit, label, whoTable){
     if(!insight) return `<p class="insight-empty">${label} 기록이 아직 없어요</p>`;
     let lines = [`최근 ${formatDate(insight.lastDate)} 기준 <b>${insight.lastVal}${unit}</b>`];
     if(insight.sincePrev !== null){
@@ -584,26 +738,34 @@ function renderChart(container){
     if(insight.perMonth !== null){
       lines.push(`측정 시작 이후 월평균 <b>${fmtSigned(insight.perMonth, unit)}</b> 성장`);
     }
+    if(hasBirth && whoTable){
+      const ageM = ageInMonthsFloat(state.meta.birthDate, insight.lastDate);
+      if(ageM >= 0 && ageM <= 60){
+        const row = whoRowAt(whoTable, ageM);
+        lines.push(`또래(WHO 여아 기준) 중 <b>${percentileBandLabel(insight.lastVal, row)}</b>`);
+      }
+    }
     return `<p class="insight-line">${lines.join(" · ")}</p>`;
   }
 
   container.appendChild(el(`
     <div class="chart-card">
       <h3>키 (cm)</h3>
-      ${insightHtml(hInsight, "cm", "키")}
+      ${insightHtml(hInsight, "cm", "키", WHO_GIRLS_HEIGHT)}
       <div class="chart-canvas-wrap"><canvas id="height-chart"></canvas></div>
+      ${hasBirth ? `<div class="who-legend">회색 점선: WHO 여아 또래 기준 (3~97번째 백분위) · <span style="color:var(--sage);font-weight:700;">●</span> 우리 아이</div>` : `<p class="insight-empty">설정 탭에서 생년월일을 입력하면 또래 성장 곡선과 비교돼요</p>`}
     </div>
     <div class="chart-card">
       <h3>몸무게 (kg)</h3>
-      ${insightHtml(wInsight, "kg", "몸무게")}
+      ${insightHtml(wInsight, "kg", "몸무게", WHO_GIRLS_WEIGHT)}
       <div class="chart-canvas-wrap"><canvas id="weight-chart"></canvas></div>
+      ${hasBirth ? `<div class="who-legend">회색 점선: WHO 여아 또래 기준 (3~97번째 백분위) · <span style="color:var(--mustard);font-weight:700;">●</span> 우리 아이</div>` : ""}
     </div>
+    ${hasBirth ? `<p class="insight-empty" style="margin-top:-6px;">※ WHO 성장 표준(여아, 0~60개월) 기준 참고용이며 의학적 진단이 아니에요. 정확한 평가는 소아과 진료를 받아보세요.</p>` : ""}
   `));
   ensureChartJs().then(()=>{
-    const hLabels = heightVals.map(e=>formatDate(e.date));
-    const wLabels = weightVals.map(e=>formatDate(e.date));
-    if(heightVals.length) drawChart("height-chart", hLabels, heightVals.map(e=>e.height), "#4F7859");
-    if(weightVals.length) drawChart("weight-chart", wLabels, weightVals.map(e=>e.weight), "#E3A857");
+    if(heightVals.length) drawChart("height-chart", heightVals, "height", "#4F7859", hasBirth ? WHO_GIRLS_HEIGHT : null);
+    if(weightVals.length) drawChart("weight-chart", weightVals, "weight", "#E3A857", hasBirth ? WHO_GIRLS_WEIGHT : null);
   }).catch(()=>{
     container.querySelectorAll(".chart-canvas-wrap").forEach(w=>{
       w.innerHTML = `<p class="insight-empty">차트 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요.</p>`;
@@ -629,17 +791,61 @@ function ensureChartJs(){
   }
   return tryLoad(0);
 }
-function drawChart(canvasId, labels, data, color){
+function drawChart(canvasId, entryList, key, color, whoTable){
   const canvas = document.getElementById(canvasId);
   if(!canvas) return;
+  const hasBirth = !!state.meta.birthDate;
+  const datasets = [];
+
+  if(whoTable){
+    // build percentile reference lines across the age range actually needed (0 to max child age, capped 60)
+    const maxAge = Math.min(60, Math.max(24, Math.ceil(Math.max(...entryList.map(e=>ageInMonthsFloat(state.meta.birthDate, e.date))))+2));
+    const months = [];
+    for(let m=0; m<=maxAge; m++) months.push(m);
+    const mkLine = (field, dash, width) => ({
+      label: field, data: months.map(m=>({x:m, y:whoTable[m][field]})),
+      borderColor:"#B9B4A2", borderWidth:width, borderDash:dash, pointRadius:0, fill:false, tension:0.25, order:2
+    });
+    datasets.push(mkLine("p97",[2,3],1));
+    datasets.push(mkLine("p85",[2,3],1));
+    datasets.push(mkLine("p50",[5,3],1.5));
+    datasets.push(mkLine("p15",[2,3],1));
+    datasets.push(mkLine("p3",[2,3],1));
+  }
+
+  const childData = hasBirth
+    ? entryList.map(e => ({x: ageInMonthsFloat(state.meta.birthDate, e.date), y: e[key]}))
+    : entryList.map((e,i) => ({x:i, y:e[key]}));
+  datasets.push({
+    label:"우리 아이", data: childData,
+    borderColor:color, backgroundColor:color+"33", tension:0.3, spanGaps:true,
+    pointRadius:5, pointHoverRadius:6, borderWidth:3, fill:false, order:1
+  });
+
   new Chart(canvas, {
     type:"line",
-    data:{labels, datasets:[{data, borderColor:color, backgroundColor:color+"33", tension:0.3, spanGaps:true, pointRadius:4, fill:true}]},
+    data:{datasets},
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{y:{beginAtZero:false}}
+      parsing:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            title: (items)=> hasBirth ? `${Math.round(items[0].parsed.x*10)/10}개월` : "",
+            label: (item)=> item.dataset.label==="우리 아이" ? `우리 아이: ${item.parsed.y}` : `${item.dataset.label}: ${item.parsed.y}`
+          }
+        }
+      },
+      scales:{
+        x:{
+          type:"linear",
+          title:{display:hasBirth, text:hasBirth ? "개월 수" : ""},
+          ticks:{ callback:(v)=> hasBirth ? Math.round(v) : "" }
+        },
+        y:{ beginAtZero:false }
+      }
     }
   });
 }
@@ -652,6 +858,7 @@ function renderSettings(container){
       <h3>아이 정보</h3>
       <div class="field"><label>이름</label><input id="s-name" value="${state.meta.childName||""}"></div>
       <div class="field"><label>생년월일</label><input id="s-birth" type="date" value="${state.meta.birthDate||""}"></div>
+      <p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 12px;">성장 차트의 또래 비교는 WHO 여아 성장 표준(0~60개월)을 기준으로 표시돼요.</p>
       <button class="btn" id="save-meta">저장</button>
       <div id="meta-msg"></div>
     </div>
@@ -717,6 +924,21 @@ function openAddSheet(){
         </div>
         <div class="field"><label>오늘의 이야기</label><textarea id="a-diary" rows="4" placeholder="오늘 있었던 일을 적어보세요"></textarea></div>
         <div class="field">
+          <label>이정표 (선택)</label>
+          <select id="a-milestone">
+            <option value="">해당 없음</option>
+            <option value="🎉 첫 걸음마">🎉 첫 걸음마</option>
+            <option value="🍚 첫 이유식">🍚 첫 이유식</option>
+            <option value="🦷 첫 이가 났어요">🦷 첫 이가 났어요</option>
+            <option value="🗣️ 첫 옹알이/단어">🗣️ 첫 옹알이/단어</option>
+            <option value="🛌 첫 뒤집기">🛌 첫 뒤집기</option>
+            <option value="🚼 첫 외출">🚼 첫 외출</option>
+            <option value="🎂 생일">🎂 생일</option>
+            <option value="✏️ 직접 입력">✏️ 직접 입력</option>
+          </select>
+          <input id="a-milestone-custom" placeholder="이정표 이름을 입력하세요" style="margin-top:8px;display:none;">
+        </div>
+        <div class="field">
           <label>사진</label>
           <label class="file-btn" id="pick-photo">📷 사진 선택하기<input type="file" id="a-photos" accept="image/*" multiple style="display:none"></label>
           <div class="photo-input-preview" id="a-preview"></div>
@@ -732,6 +954,9 @@ function openAddSheet(){
   document.body.appendChild(overlay);
   overlay.onclick = (e) => { if(e.target === overlay) overlay.remove(); };
   overlay.querySelector("#cancel-add").onclick = () => overlay.remove();
+  overlay.querySelector("#a-milestone").onchange = (e) => {
+    overlay.querySelector("#a-milestone-custom").style.display = e.target.value === "✏️ 직접 입력" ? "block" : "none";
+  };
   overlay.querySelector("#a-photos").onchange = (e) => {
     const preview = overlay.querySelector("#a-preview");
     [...e.target.files].forEach(file => {
@@ -746,6 +971,10 @@ function openAddSheet(){
     const height = parseFloat(overlay.querySelector("#a-height").value) || null;
     const weight = parseFloat(overlay.querySelector("#a-weight").value) || null;
     const diary = overlay.querySelector("#a-diary").value.trim();
+    const milestoneSel = overlay.querySelector("#a-milestone").value;
+    const milestone = milestoneSel === "✏️ 직접 입력"
+      ? overlay.querySelector("#a-milestone-custom").value.trim()
+      : milestoneSel;
     if(!date){ overlay.querySelector("#add-msg").innerHTML = `<div class="msg error">날짜를 선택해주세요.</div>`; return; }
     const btn = overlay.querySelector("#save-add");
     btn.innerHTML = `<span class="spinner"></span> 저장 중...`;
@@ -759,7 +988,7 @@ function openAddSheet(){
       }
       const entry = {
         id: Date.now().toString(36)+Math.random().toString(36).slice(2,6),
-        date, height, weight, diary, photos: photoPaths,
+        date, height, weight, diary, milestone: milestone || null, photos: photoPaths,
         createdAt: new Date().toISOString()
       };
       // re-fetch entries to get latest sha (in case wife added something meanwhile)
@@ -796,6 +1025,21 @@ function openEditSheet(entry){
         </div>
         <div class="field"><label>오늘의 이야기</label><textarea id="e-diary" rows="4" placeholder="오늘 있었던 일을 적어보세요">${escapeHtml(entry.diary||"")}</textarea></div>
         <div class="field">
+          <label>이정표 (선택)</label>
+          <select id="e-milestone">
+            <option value="">해당 없음</option>
+            <option value="🎉 첫 걸음마">🎉 첫 걸음마</option>
+            <option value="🍚 첫 이유식">🍚 첫 이유식</option>
+            <option value="🦷 첫 이가 났어요">🦷 첫 이가 났어요</option>
+            <option value="🗣️ 첫 옹알이/단어">🗣️ 첫 옹알이/단어</option>
+            <option value="🛌 첫 뒤집기">🛌 첫 뒤집기</option>
+            <option value="🚼 첫 외출">🚼 첫 외출</option>
+            <option value="🎂 생일">🎂 생일</option>
+            <option value="✏️ 직접 입력">✏️ 직접 입력</option>
+          </select>
+          <input id="e-milestone-custom" placeholder="이정표 이름을 입력하세요" style="margin-top:8px;display:none;">
+        </div>
+        <div class="field">
           <label>기존 사진 (탭하면 삭제 표시)</label>
           <div class="photo-input-preview" id="e-existing"></div>
         </div>
@@ -815,6 +1059,20 @@ function openEditSheet(entry){
   document.body.appendChild(overlay);
   overlay.onclick = (e) => { if(e.target === overlay) overlay.remove(); };
   overlay.querySelector("#cancel-edit").onclick = () => overlay.remove();
+
+  const milestoneSelectEl = overlay.querySelector("#e-milestone");
+  const milestoneCustomEl = overlay.querySelector("#e-milestone-custom");
+  const presetValues = [...milestoneSelectEl.options].map(o=>o.value);
+  if(entry.milestone && presetValues.includes(entry.milestone)){
+    milestoneSelectEl.value = entry.milestone;
+  }else if(entry.milestone){
+    milestoneSelectEl.value = "✏️ 직접 입력";
+    milestoneCustomEl.style.display = "block";
+    milestoneCustomEl.value = entry.milestone;
+  }
+  milestoneSelectEl.onchange = (e) => {
+    milestoneCustomEl.style.display = e.target.value === "✏️ 직접 입력" ? "block" : "none";
+  };
 
   const existingWrap = overlay.querySelector("#e-existing");
   (entry.photos||[]).forEach(path => {
@@ -852,6 +1110,8 @@ function openEditSheet(entry){
     const height = parseFloat(overlay.querySelector("#e-height").value);
     const weight = parseFloat(overlay.querySelector("#e-weight").value);
     const diary = overlay.querySelector("#e-diary").value.trim();
+    const milestoneSel = milestoneSelectEl.value;
+    const milestone = milestoneSel === "✏️ 직접 입력" ? milestoneCustomEl.value.trim() : milestoneSel;
     if(!date){ overlay.querySelector("#edit-msg").innerHTML = `<div class="msg error">날짜를 선택해주세요.</div>`; return; }
     const btn = overlay.querySelector("#save-edit");
     btn.innerHTML = `<span class="spinner"></span> 저장 중...`;
@@ -870,6 +1130,7 @@ function openEditSheet(entry){
         height: isNaN(height) ? null : height,
         weight: isNaN(weight) ? null : weight,
         diary,
+        milestone: milestone || null,
         photos: [...keptPhotos, ...newPhotoPaths],
         updatedAt: new Date().toISOString()
       };
