@@ -140,16 +140,61 @@
     color:var(--ink-soft);background:var(--card);border:1.5px solid var(--line);
   }
   .view-toggle-btn.active{background:var(--sage);color:#fff;border-color:var(--sage);}
+  .compare-entry-btn{width:100%;margin-bottom:16px;}
+
+  .compare-wrap{
+    position:relative;width:100%;aspect-ratio:1;border-radius:14px;overflow:hidden;
+    background:#111;touch-action:none;user-select:none;margin-bottom:14px;
+  }
+  .compare-wrap img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;}
+  .compare-after{z-index:1;}
+  .compare-before{z-index:2;}
+  .compare-handle{
+    position:absolute;top:0;bottom:0;width:3px;background:#fff;z-index:3;left:50%;
+    box-shadow:0 0 6px rgba(0,0,0,0.4);pointer-events:none;
+  }
+  .compare-handle::after{
+    content:"↔";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:36px;height:36px;border-radius:50%;background:#fff;color:var(--sage);
+    display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);
+  }
+  .compare-label{
+    position:absolute;bottom:10px;z-index:4;background:rgba(0,0,0,0.55);color:#fff;
+    font-size:11.5px;padding:4px 10px;border-radius:14px;pointer-events:none;
+  }
+  .compare-label.left{left:10px;}
+  .compare-label.right{right:10px;}
+  .compare-picker-row{display:flex;gap:10px;margin-bottom:14px;}
+  .compare-picker-row .field{flex:1;margin-bottom:0;}
+  .compare-picker-row select{font-size:13px;}
+
+  .year-summary-cover{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin-bottom:14px;background:var(--sage-light);}
+  .summary-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .summary-stat{background:var(--card);border-radius:10px;padding:12px;text-align:center;}
+  .summary-stat .num{font-family:'Space Mono',monospace;font-size:19px;font-weight:700;color:var(--sage);display:block;}
+  .summary-stat .lbl{font-size:11.5px;color:var(--ink-soft);}
+  .summary-section-title{font-size:13px;font-weight:700;color:var(--ink);margin:14px 0 6px;}
+  .summary-milestone-row{display:flex;gap:8px;font-size:13px;padding:6px 0;border-bottom:1px solid var(--line);}
+  .summary-milestone-row .d{font-family:'Space Mono',monospace;font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
 
   .year-block{margin-bottom:6px;}
   .year-group-header{
-    width:100%;display:flex;align-items:center;gap:10px;
+    width:100%;display:flex;align-items:center;gap:8px;
     background:var(--card);border-radius:12px;box-shadow:var(--shadow);
-    padding:14px 16px;margin:14px 0 4px;font-family:'Fraunces',serif;font-weight:700;font-size:16px;color:var(--ink);
+    padding:10px 10px 10px 16px;margin:14px 0 4px;
   }
   .year-group-header.open{margin-bottom:0;border-radius:12px 12px 0 0;}
+  .year-group-toggle{
+    flex:1;display:flex;align-items:center;gap:10px;background:none;border:none;padding:0;text-align:left;
+    font-family:'Fraunces',serif;font-weight:700;font-size:16px;color:var(--ink);
+  }
   .year-group-count{font-family:'Inter',sans-serif;font-weight:600;font-size:12px;color:var(--ink-soft);}
-  .year-group-chevron{margin-left:auto;color:var(--sage);font-size:14px;}
+  .year-summary-btn{
+    font-size:12px;font-weight:600;color:var(--sage);background:var(--sage-light);
+    padding:6px 10px;border-radius:16px;white-space:nowrap;
+  }
+  .year-group-chevron{color:var(--sage);font-size:14px;}
   .year-block .timeline{
     background:var(--bg);padding:14px 16px 14px 34px;border-radius:0 0 12px 12px;margin-bottom:10px;
   }
@@ -608,6 +653,13 @@ function renderTimeline(container){
   });
   container.appendChild(toggle);
 
+  const photoCount = entries.reduce((n,e)=> n + (e.photos?e.photos.length:0), 0);
+  if(photoCount >= 2){
+    const compareBtn = el(`<button class="btn secondary compare-entry-btn">📸 그때 vs 지금 비교하기</button>`);
+    compareBtn.onclick = openCompareSheet;
+    container.appendChild(compareBtn);
+  }
+
   // "몇 년 전 오늘" 메모리 카드
   const today = new Date();
   const todayMM = today.getMonth(), todayDD = today.getDate();
@@ -639,17 +691,24 @@ function renderTimeline(container){
       const isOpen = state.expandedYears.has(year);
       const yearBlock = el(`
         <div class="year-block">
-          <button class="year-group-header ${isOpen ? "open" : ""}">
-            <span>${year}년</span>
-            <span class="year-group-count">${yearEntries.length}건</span>
+          <div class="year-group-header ${isOpen ? "open" : ""}">
+            <button class="year-group-toggle">
+              <span>${year}년</span>
+              <span class="year-group-count">${yearEntries.length}건</span>
+            </button>
+            <button class="year-summary-btn">📖 요약</button>
             <span class="year-group-chevron">${isOpen ? "▾" : "▸"}</span>
-          </button>
+          </div>
         </div>
       `);
-      yearBlock.querySelector(".year-group-header").onclick = () => {
+      yearBlock.querySelector(".year-group-toggle").onclick = () => {
         if(state.expandedYears.has(year)) state.expandedYears.delete(year);
         else state.expandedYears.add(year);
         renderApp();
+      };
+      yearBlock.querySelector(".year-summary-btn").onclick = (e) => {
+        e.stopPropagation();
+        openYearSummarySheet(year, yearEntries);
       };
       if(isOpen){
         yearBlock.appendChild(renderMonthGroupedList(yearEntries));
@@ -740,6 +799,229 @@ function openLightbox(photos, startIndex){
     if(closedByPop) return;
     history.back(); // popstate가 발생하며 cleanup 실행됨
   }
+}
+
+/* 뒤로가기 버튼을 누르면 앱 전체가 아니라 이 오버레이만 닫히도록 처리하는 공용 헬퍼 */
+function pushBackClosable(overlay, onClose){
+  history.pushState({ modal:true }, "");
+  let closedByPop = false;
+  function onPopState(){ closedByPop = true; cleanup(); }
+  window.addEventListener("popstate", onPopState);
+  function cleanup(){
+    window.removeEventListener("popstate", onPopState);
+    overlay.remove();
+    if(onClose) onClose();
+  }
+  return function requestClose(){
+    if(closedByPop) return;
+    history.back();
+  };
+}
+
+/* ---------- 그때 vs 지금 비교 슬라이더 ---------- */
+function getAllPhotoOptions(){
+  const list = [];
+  [...state.entries].sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+    (e.photos||[]).forEach((p, i)=>{
+      list.push({
+        date: e.date, path: p,
+        label: (e.photos.length>1 ? `${formatDate(e.date)} (${i+1}/${e.photos.length})` : formatDate(e.date))
+      });
+    });
+  });
+  return list;
+}
+function openCompareSheet(){
+  const options = getAllPhotoOptions();
+  if(options.length < 2){ showToast("비교하려면 사진이 2장 이상 있어야 해요"); return; }
+  let beforeIdx = 0, afterIdx = options.length-1;
+
+  const overlay = el(`
+    <div class="overlay">
+      <div class="sheet">
+        <h2 class="display">그때 vs 지금</h2>
+        <div class="compare-picker-row">
+          <div class="field"><label>이전 사진</label><select id="cmp-before"></select></div>
+          <div class="field"><label>최근 사진</label><select id="cmp-after"></select></div>
+        </div>
+        <div class="compare-wrap">
+          <img class="compare-after">
+          <img class="compare-before">
+          <div class="compare-label left"></div>
+          <div class="compare-label right"></div>
+          <div class="compare-handle"></div>
+        </div>
+        <div class="sheet-actions">
+          <button class="btn ghost" id="cmp-close">닫기</button>
+        </div>
+      </div>
+    </div>
+  `);
+  document.body.appendChild(overlay);
+
+  const selBefore = overlay.querySelector("#cmp-before");
+  const selAfter = overlay.querySelector("#cmp-after");
+  options.forEach((o,i)=>{
+    selBefore.appendChild(el(`<option value="${i}">${o.label}</option>`));
+    selAfter.appendChild(el(`<option value="${i}">${o.label}</option>`));
+  });
+  selBefore.value = beforeIdx;
+  selAfter.value = afterIdx;
+
+  const wrap = overlay.querySelector(".compare-wrap");
+  const imgBefore = overlay.querySelector(".compare-before");
+  const imgAfter = overlay.querySelector(".compare-after");
+  const handle = overlay.querySelector(".compare-handle");
+  const labelLeft = overlay.querySelector(".compare-label.left");
+  const labelRight = overlay.querySelector(".compare-label.right");
+  let pct = 50;
+
+  function setClip(){
+    imgBefore.style.clipPath = `inset(0 ${100-pct}% 0 0)`;
+    handle.style.left = pct + "%";
+  }
+  function loadSides(){
+    const b = options[selBefore.value], a = options[selAfter.value];
+    loadPhoto(b.path).then(url=> imgBefore.src = url).catch(()=>{});
+    loadPhoto(a.path).then(url=> imgAfter.src = url).catch(()=>{});
+    labelLeft.textContent = `${formatDate(b.date)} · ${ageAt(state.meta.birthDate, b.date)}`;
+    labelRight.textContent = `${formatDate(a.date)} · ${ageAt(state.meta.birthDate, a.date)}`;
+    setClip();
+  }
+  loadSides();
+  selBefore.onchange = loadSides;
+  selAfter.onchange = loadSides;
+
+  function moveTo(clientX){
+    const rect = wrap.getBoundingClientRect();
+    pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    setClip();
+  }
+  let dragging = false;
+  wrap.addEventListener("pointerdown", e=>{ dragging = true; moveTo(e.clientX); });
+  window.addEventListener("pointermove", e=>{ if(dragging) moveTo(e.clientX); });
+  window.addEventListener("pointerup", ()=>{ dragging = false; });
+
+  const requestClose = pushBackClosable(overlay);
+  overlay.onclick = (e) => { if(e.target === overlay) requestClose(); };
+  overlay.querySelector("#cmp-close").onclick = requestClose;
+}
+
+/* ---------- 연말 자동 요약 ---------- */
+function computeYearSummary(year, yearEntries){
+  const sorted = [...yearEntries].sort((a,b)=>a.date.localeCompare(b.date));
+  const totalEntries = sorted.length;
+  const totalPhotos = sorted.reduce((n,e)=> n + (e.photos?e.photos.length:0), 0);
+  const heightVals = sorted.filter(e=>e.height!=null);
+  const weightVals = sorted.filter(e=>e.weight!=null);
+  const milestones = sorted.filter(e=>e.milestone).map(e=>({date:e.date, milestone:e.milestone}));
+  const monthCounts = {};
+  sorted.forEach(e=>{ const m = new Date(e.date).getMonth()+1; monthCounts[m] = (monthCounts[m]||0)+1; });
+  let busiestMonth = null, busiestCount = 0;
+  Object.entries(monthCounts).forEach(([m,c])=>{ if(c>busiestCount){ busiestCount=c; busiestMonth=m; } });
+  let coverPhoto = null;
+  for(let i=sorted.length-1; i>=0; i--){
+    if(sorted[i].photos && sorted[i].photos.length){ coverPhoto = sorted[i].photos[0]; break; }
+  }
+  return {
+    totalEntries, totalPhotos,
+    heightFirst: heightVals[0]||null, heightLast: heightVals[heightVals.length-1]||null,
+    weightFirst: weightVals[0]||null, weightLast: weightVals[weightVals.length-1]||null,
+    milestones, busiestMonth, busiestCount, coverPhoto
+  };
+}
+function openYearSummarySheet(year, yearEntries){
+  const s = computeYearSummary(year, yearEntries);
+  const name = state.meta.childName || "우리 아이";
+
+  function changeLine(first, last, unit){
+    if(!first) return `기록 없음`;
+    if(first === last) return `${first[unit==="cm"?"height":"weight"]}${unit} (1건 기록)`;
+    const fv = first[unit==="cm"?"height":"weight"], lv = last[unit==="cm"?"height":"weight"];
+    const diff = Math.round((lv-fv)*10)/10;
+    return `${fv}${unit} → ${lv}${unit} (${diff>=0?"+":""}${diff}${unit})`;
+  }
+
+  const overlay = el(`
+    <div class="overlay">
+      <div class="sheet" id="year-summary-content">
+        <h2 class="display">${year}년, ${name}의 한 해</h2>
+        ${s.coverPhoto ? `<img class="year-summary-cover">` : ""}
+        <div class="summary-stat-grid">
+          <div class="summary-stat"><span class="num">${s.totalEntries}</span><span class="lbl">총 기록</span></div>
+          <div class="summary-stat"><span class="num">${s.totalPhotos}</span><span class="lbl">사진</span></div>
+        </div>
+        <div class="summary-section-title">키 변화</div>
+        <p class="insight-line">${changeLine(s.heightFirst, s.heightLast, "cm")}</p>
+        <div class="summary-section-title">몸무게 변화</div>
+        <p class="insight-line">${changeLine(s.weightFirst, s.weightLast, "kg")}</p>
+        ${s.busiestMonth ? `<div class="summary-section-title">가장 기록이 많았던 달</div><p class="insight-line">${s.busiestMonth}월 (${s.busiestCount}건)</p>` : ""}
+        <div class="summary-section-title">이정표</div>
+        ${s.milestones.length ? s.milestones.map(m=>`<div class="summary-milestone-row"><span class="d">${formatDate(m.date)}</span><span>${escapeHtml(m.milestone)}</span></div>`).join("") : `<p class="insight-empty">등록된 이정표가 없어요</p>`}
+        <div class="sheet-actions" id="year-summary-actions">
+          <button class="btn ghost" id="ys-close">닫기</button>
+          <button class="btn" id="ys-save">이미지로 저장</button>
+        </div>
+        <div id="ys-msg"></div>
+      </div>
+    </div>
+  `);
+  document.body.appendChild(overlay);
+  if(s.coverPhoto){
+    loadPhoto(s.coverPhoto).then(url=>{ overlay.querySelector(".year-summary-cover").src = url; }).catch(()=>{});
+  }
+
+  const requestClose = pushBackClosable(overlay);
+  overlay.onclick = (e) => { if(e.target === overlay) requestClose(); };
+  overlay.querySelector("#ys-close").onclick = requestClose;
+  overlay.querySelector("#ys-save").onclick = async () => {
+    const btn = overlay.querySelector("#ys-save");
+    btn.innerHTML = `<span class="spinner"></span> 저장 중...`;
+    try{
+      await ensureHtml2Canvas();
+      const actions = overlay.querySelector("#year-summary-actions");
+      const msg = overlay.querySelector("#ys-msg");
+      actions.style.display = "none";
+      msg.style.display = "none";
+      const target = overlay.querySelector("#year-summary-content");
+      const canvas = await html2canvas(target, {backgroundColor:"#F3F1E6", useCORS:true});
+      actions.style.display = "";
+      msg.style.display = "";
+      canvas.toBlob(blob=>{
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${name}_${year}년_요약.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 3000);
+        showToast("이미지로 저장했어요");
+      });
+    }catch(e){
+      overlay.querySelector("#ys-msg").innerHTML = `<div class="msg error">이미지 저장에 실패했어요: ${e.message}</div>`;
+    }
+    btn.textContent = "이미지로 저장";
+  };
+}
+function ensureHtml2Canvas(){
+  if(window.html2canvas) return Promise.resolve();
+  const sources = [
+    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+    "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+    "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"
+  ];
+  function tryLoad(i){
+    return new Promise((resolve, reject)=>{
+      if(i >= sources.length){ reject(new Error("모든 CDN 로딩 실패")); return; }
+      const s = document.createElement("script");
+      s.src = sources[i];
+      s.onload = () => window.html2canvas ? resolve() : tryLoad(i+1).then(resolve, reject);
+      s.onerror = () => tryLoad(i+1).then(resolve, reject);
+      document.head.appendChild(s);
+    });
+  }
+  return tryLoad(0);
 }
 
 function formatDate(dateStr){
