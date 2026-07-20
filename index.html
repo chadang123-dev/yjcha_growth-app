@@ -131,6 +131,30 @@
   .entry-actions{display:flex;justify-content:flex-end;gap:14px;margin-top:8px;}
   .entry-actions button{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
   .entry-actions button.del{color:var(--berry);}
+
+  .share-ratio-toggle{display:flex;gap:8px;margin-bottom:14px;}
+  .share-ratio-toggle button{
+    flex:1;padding:8px;border-radius:20px;font-size:12.5px;font-weight:600;
+    color:var(--ink-soft);background:var(--card);border:1.5px solid var(--line);
+  }
+  .share-ratio-toggle button.active{background:var(--sage);color:#fff;border-color:var(--sage);}
+  .share-preview-outer{display:flex;justify-content:center;margin-bottom:16px;}
+  .share-preview-wrap{
+    position:relative;width:260px;border-radius:16px;overflow:hidden;background:#111;
+  }
+  .share-preview-wrap.ratio-square{aspect-ratio:1/1;}
+  .share-preview-wrap.ratio-story{aspect-ratio:9/16;}
+  .share-preview-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .share-preview-overlay{
+    position:absolute;left:0;right:0;bottom:0;height:55%;
+    background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));
+  }
+  .share-preview-text{
+    position:absolute;left:0;right:0;bottom:0;padding:18px 16px;color:#fff;
+  }
+  .share-preview-text .sp-age{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;opacity:0.9;margin-bottom:4px;}
+  .share-preview-text .sp-date{font-family:'Fraunces',serif;font-size:17px;font-weight:700;margin-bottom:6px;}
+  .share-preview-text .sp-diary{font-size:12.5px;line-height:1.5;opacity:0.95;}
   .empty-state{text-align:center;padding:60px 20px;color:var(--ink-soft);}
   .empty-state .display{font-size:19px;color:var(--ink);margin-bottom:6px;}
 
@@ -588,6 +612,7 @@ function buildEntryCard(entry){
         ${entry.diary ? `<div class="diary">${escapeHtml(entry.diary)}</div>` : ""}
         <div class="photo-grid"></div>
         <div class="entry-actions">
+          ${(entry.photos&&entry.photos.length) ? `<button class="share">공유</button>` : ""}
           <button class="edit">수정</button>
           <button class="del">삭제</button>
         </div>
@@ -605,6 +630,9 @@ function buildEntryCard(entry){
       ph.replaceWith(img);
     }).catch(()=>{ ph.style.background = "#eee"; });
   });
+  if(card.querySelector(".share")){
+    card.querySelector(".share").onclick = () => openShareCardSheet(entry);
+  }
   card.querySelector(".edit").onclick = () => openEditSheet(entry);
   card.querySelector(".del").onclick = () => deleteEntry(entry.id);
   return card;
@@ -1022,6 +1050,96 @@ function ensureHtml2Canvas(){
     });
   }
   return tryLoad(0);
+}
+
+/* ---------- SNS 카드 공유 ---------- */
+function truncateText(s, max){
+  if(!s) return "";
+  return s.length > max ? s.slice(0, max).trim() + "…" : s;
+}
+function openShareCardSheet(entry){
+  const photoPath = entry.photos[0];
+  let ratio = "square"; // "square" | "story"
+
+  const overlay = el(`
+    <div class="overlay">
+      <div class="sheet">
+        <h2 class="display">카드로 공유하기</h2>
+        <div class="share-ratio-toggle">
+          <button data-ratio="square">피드용 (1:1)</button>
+          <button data-ratio="story">스토리용 (9:16)</button>
+        </div>
+        <div class="share-preview-outer">
+          <div class="share-preview-wrap ratio-square" id="share-preview">
+            <img id="share-preview-img">
+            <div class="share-preview-overlay"></div>
+            <div class="share-preview-text">
+              <div class="sp-age">${ageAt(state.meta.birthDate, entry.date)}</div>
+              <div class="sp-date">${formatDate(entry.date)}</div>
+              ${entry.diary ? `<div class="sp-diary">${escapeHtml(truncateText(entry.diary, 60))}</div>` : ""}
+            </div>
+          </div>
+        </div>
+        <div class="sheet-actions">
+          <button class="btn ghost" id="share-close">닫기</button>
+          <button class="btn" id="share-go">공유하기</button>
+        </div>
+        <div id="share-msg"></div>
+      </div>
+    </div>
+  `);
+  document.body.appendChild(overlay);
+
+  loadPhoto(photoPath).then(url=>{ overlay.querySelector("#share-preview-img").src = url; }).catch(()=>{});
+
+  const preview = overlay.querySelector("#share-preview");
+  overlay.querySelectorAll(".share-ratio-toggle button").forEach(b=>{
+    b.classList.toggle("active", b.dataset.ratio === ratio);
+    b.onclick = () => {
+      ratio = b.dataset.ratio;
+      preview.classList.toggle("ratio-square", ratio === "square");
+      preview.classList.toggle("ratio-story", ratio === "story");
+      overlay.querySelectorAll(".share-ratio-toggle button").forEach(x=>x.classList.toggle("active", x===b));
+    };
+  });
+
+  const requestClose = pushBackClosable(overlay);
+  overlay.onclick = (e) => { if(e.target === overlay) requestClose(); };
+  overlay.querySelector("#share-close").onclick = requestClose;
+
+  overlay.querySelector("#share-go").onclick = async () => {
+    const btn = overlay.querySelector("#share-go");
+    btn.innerHTML = `<span class="spinner"></span> 만드는 중...`;
+    try{
+      await ensureHtml2Canvas();
+      const canvas = await html2canvas(preview, {backgroundColor:"#111", useCORS:true});
+      canvas.toBlob(async (blob) => {
+        const fileName = `${state.meta.childName||"우리아이"}_${entry.date}.png`;
+        const file = new File([blob], fileName, {type:"image/png"});
+        if(navigator.canShare && navigator.canShare({files:[file]})){
+          try{
+            await navigator.share({files:[file], title: fileName});
+            btn.textContent = "공유하기";
+            return;
+          }catch(e){
+            // 사용자가 공유 취소한 경우 등은 조용히 무시
+            if(e.name === "AbortError"){ btn.textContent = "공유하기"; return; }
+          }
+        }
+        // navigator.share 미지원 브라우저 → 다운로드로 대체
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 3000);
+        showToast("이미지로 저장했어요. 원하는 앱에서 공유해보세요 📤");
+        btn.textContent = "공유하기";
+      });
+    }catch(e){
+      overlay.querySelector("#share-msg").innerHTML = `<div class="msg error">카드를 만들지 못했어요: ${e.message}</div>`;
+      btn.textContent = "공유하기";
+    }
+  };
 }
 
 function formatDate(dateStr){
