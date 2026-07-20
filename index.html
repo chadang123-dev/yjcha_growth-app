@@ -155,6 +155,12 @@
   .share-preview-text .sp-age{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;opacity:0.9;margin-bottom:4px;}
   .share-preview-text .sp-date{font-family:'Fraunces',serif;font-size:17px;font-weight:700;margin-bottom:6px;}
   .share-preview-text .sp-diary{font-size:12.5px;line-height:1.5;opacity:0.95;}
+  .share-photo-picker{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:16px;}
+  .share-photo-picker img{
+    width:52px;height:52px;object-fit:cover;border-radius:8px;cursor:pointer;
+    border:2px solid transparent;opacity:0.55;
+  }
+  .share-photo-picker img.selected{border-color:var(--sage);opacity:1;}
   .empty-state{text-align:center;padding:60px 20px;color:var(--ink-soft);}
   .empty-state .display{font-size:19px;color:var(--ink);margin-bottom:6px;}
 
@@ -1058,7 +1064,7 @@ function truncateText(s, max){
   return s.length > max ? s.slice(0, max).trim() + "…" : s;
 }
 function openShareCardSheet(entry){
-  const photoPath = entry.photos[0];
+  let photoIdx = 0;
   let ratio = "square"; // "square" | "story"
 
   const overlay = el(`
@@ -1080,6 +1086,7 @@ function openShareCardSheet(entry){
             </div>
           </div>
         </div>
+        ${entry.photos.length > 1 ? `<div class="share-photo-picker" id="share-photo-picker"></div>` : ""}
         <div class="sheet-actions">
           <button class="btn ghost" id="share-close">닫기</button>
           <button class="btn" id="share-go">공유하기</button>
@@ -1090,7 +1097,26 @@ function openShareCardSheet(entry){
   `);
   document.body.appendChild(overlay);
 
-  loadPhoto(photoPath).then(url=>{ overlay.querySelector("#share-preview-img").src = url; }).catch(()=>{});
+  const previewImg = overlay.querySelector("#share-preview-img");
+  function setPhoto(idx){
+    photoIdx = idx;
+    loadPhoto(entry.photos[idx]).then(url=>{ previewImg.src = url; }).catch(()=>{});
+    const picker = overlay.querySelector("#share-photo-picker");
+    if(picker){
+      picker.querySelectorAll("img").forEach((im,i)=> im.classList.toggle("selected", i===idx));
+    }
+  }
+  setPhoto(0);
+
+  if(entry.photos.length > 1){
+    const picker = overlay.querySelector("#share-photo-picker");
+    entry.photos.forEach((path, idx) => {
+      const thumb = el(`<img class="${idx===0?"selected":""}">`);
+      picker.appendChild(thumb);
+      loadPhoto(path).then(url=>{ thumb.src = url; }).catch(()=>{});
+      thumb.onclick = () => setPhoto(idx);
+    });
+  }
 
   const preview = overlay.querySelector("#share-preview");
   overlay.querySelectorAll(".share-ratio-toggle button").forEach(b=>{
